@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mentum Mentum — decentralized behavior ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#10181F; --surface:#1A2530; --surface-2:#21303D; --border:#2E3F4C;
+    --text:#E9E6DC; --text-muted:#8FA0AC;
+    --gold:#C9A24B; --gold-soft:rgba(201,162,75,0.13);
+    --rust:#C06B4F; --rust-soft:rgba(181,87,61,0.15);
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; background:var(--bg); color:var(--text); font-family:'IBM Plex Sans', sans-serif; }
+  .wrap{ max-width:520px; margin:0 auto; padding:28px 18px 60px; }
+  header h1{ font-family:'Source Serif 4', serif; font-weight:600; font-size:28px; margin:0 0 4px; }
+  header p{ margin:0; color:var(--text-muted); font-size:14px; line-height:1.5; }
+  .node-tag{ font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--gold); margin-top:8px; }
+
+  .balance-card{ background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:22px 20px; margin:20px 0; }
+  .balance-num{ font-family:'Source Serif 4', serif; font-size:52px; font-weight:700; line-height:1; color:var(--gold); }
+  .balance-label{ color:var(--text-muted); font-size:13px; margin-top:6px; }
+  .balance-sub{ display:flex; gap:18px; margin-top:16px; padding-top:14px; border-top:1px solid var(--border); font-size:12.5px; color:var(--text-muted); }
+  .balance-sub b{ color:var(--text); font-weight:600; display:block; font-size:15px; font-family:'IBM Plex Mono', monospace; }
+
+  section.block{ margin-bottom:26px; }
+  section.block h2{ font-family:'Source Serif 4', serif; font-size:17px; font-weight:600; margin:0 0 10px; }
+  section.block .hint{ color:var(--text-muted); font-size:12.5px; margin:-4px 0 12px; line-height:1.5; }
+
+  .difficulty-row{ display:flex; align-items:center; justify-content:space-between; background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin-bottom:12px; font-size:13px; }
+  .difficulty-row input{ width:52px; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:6px; font-family:'IBM Plex Mono', monospace; text-align:center; }
+
+  .mining-panel{ display:none; background:var(--gold-soft); border:1px solid var(--gold); border-radius:8px; padding:12px 14px; margin-bottom:12px; font-family:'IBM Plex Mono', monospace; font-size:12.5px; }
+  .mining-panel.active{ display:block; }
+  .mining-panel .line1{ color:var(--gold); font-weight:500; }
+
+  .rule{ display:flex; align-items:center; gap:10px; padding:11px 12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; margin-bottom:8px; }
+  .rule.earn{ border-left:3px solid var(--gold); }
+  .rule.spend{ border-left:3px solid var(--rust); }
+  .rule .name{ flex:1; font-size:14px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .rule input.coins{ width:52px; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:6px; font-family:'IBM Plex Mono', monospace; font-size:13px; text-align:center; }
+  .rule .sign{ font-family:'IBM Plex Mono', monospace; font-size:13px; color:var(--text-muted); width:10px; }
+  .rule button.log{ background:var(--gold-soft); color:var(--gold); border:1px solid transparent; border-radius:6px; padding:7px 12px; font-size:13px; font-weight:500; cursor:pointer; white-space:nowrap; }
+  .rule.spend button.log{ background:var(--rust-soft); color:var(--rust); }
+  .rule button.log:disabled{ opacity:0.4; cursor:not-allowed; }
+  .rule button.del{ background:none; border:none; color:var(--text-muted); font-size:18px; line-height:1; cursor:pointer; padding:0 2px; }
+
+  .note-input, .add-form input[type=text]{ width:100%; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:8px 10px; font-size:13px; font-family:inherit; margin-bottom:8px; }
+  .note-input::placeholder{ color:var(--text-muted); }
+
+  .add-form{ display:flex; flex-wrap:wrap; gap:8px; background:var(--surface); border:1px dashed var(--border); border-radius:8px; padding:12px; }
+  .add-form input[type=text]{ flex:1 1 140px; margin-bottom:0; }
+  .add-form input[type=number]{ width:70px; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:8px; font-size:13px; font-family:'IBM Plex Mono', monospace; text-align:center; }
+  .seg{ display:flex; border:1px solid var(--border); border-radius:6px; overflow:hidden; }
+  .seg button{ background:var(--surface-2); color:var(--text-muted); border:none; padding:8px 12px; font-size:13px; cursor:pointer; }
+  .seg button.active.earn{ background:var(--gold-soft); color:var(--gold); }
+  .seg button.active.spend{ background:var(--rust-soft); color:var(--rust); }
+  .add-form button.submit{ background:var(--text); color:var(--bg); border:none; border-radius:6px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer; }
+
+  .peer-row{ display:flex; align-items:center; gap:8px; padding:9px 12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; margin-bottom:8px; font-family:'IBM Plex Mono', monospace; font-size:12.5px; }
+  .peer-row .url{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .peer-row .dot{ width:7px; height:7px; border-radius:50%; background:var(--text-muted); flex-shrink:0; }
+  .peer-row .dot.online{ background:var(--gold); }
+  .peer-row button{ background:none; border:none; color:var(--text-muted); font-size:16px; cursor:pointer; }
+  .sync-btn{ background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:8px 14px; font-size:13px; cursor:pointer; }
+
+  .entry{ display:flex; gap:12px; padding:12px 2px; border-bottom:1px solid var(--border); }
+  .entry:last-child{ border-bottom:none; }
+  .entry .delta{ font-family:'IBM Plex Mono', monospace; font-size:14px; font-weight:500; width:52px; flex-shrink:0; padding-top:2px; }
+  .entry .delta.earn{ color:var(--gold); }
+  .entry .delta.spend{ color:var(--rust); }
+  .entry .body{ flex:1; min-width:0; }
+  .entry .note{ font-size:12.5px; color:var(--text-muted); margin-top:2px; }
+  .entry .meta{ font-size:11px; color:var(--text-muted); margin-top:4px; font-family:'IBM Plex Mono', monospace; display:flex; gap:8px; flex-wrap:wrap; }
+  .empty{ color:var(--text-muted); font-size:13px; padding:16px 2px; }
+
+  .verify-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+  .status{ font-size:12.5px; font-family:'IBM Plex Mono', monospace; }
+  .status.ok{ color:var(--gold); }
+  .status.bad{ color:var(--rust); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Mentum Mentum</h1>
+    <p>A decentralized ledger. This computer mines and stores its own full copy of the chain, and stays in sync with peers through shared proof-of-work rules — no central server.</p>
+    <div class="node-tag" id="nodeTag"></div>
+  </header>
+
+  <section class="block">
+    <h2>Identity</h2>
+    <p class="hint">Every entry you mine or log here is signed with this key. Anyone can verify it came from you — the private key never leaves this computer.</p>
+    <div class="add-form">
+      <input type="text" id="identityName" placeholder="Display name" />
+      <button class="submit" id="saveIdentityBtn">Save</button>
+    </div>
+    <div class="node-tag" id="identityKey" style="margin-top:8px;"></div>
+  </section>
+
+  <div class="balance-card">
+    <div class="balance-num" id="balanceNum">0</div>
+    <div class="balance-label">coins on the chain</div>
+    <div class="balance-sub">
+      <div>earned<b id="totalEarned">0</b></div>
+      <div>spent<b id="totalSpent">0</b></div>
+      <div>entries<b id="totalEntries">0</b></div>
+    </div>
+  </div>
+
+  <section class="block">
+    <h2>Log something</h2>
+    <p class="hint">Earn rules mine a block on this machine before they seal. Spend rules post instantly.</p>
+    <div class="difficulty-row">
+      <span>Mining difficulty</span>
+      <input type="number" id="difficultyInput" min="1" max="6" />
+    </div>
+    <div class="mining-panel" id="miningPanel"><div class="line1" id="miningLine1">Mining…</div></div>
+    <input class="note-input" id="pendingNote" type="text" placeholder="Optional note for the next entry…" />
+    <div id="rulesList"></div>
+  </section>
+
+  <section class="block">
+    <h2>Rules</h2>
+    <p class="hint">Local to this computer. Coin values are yours to set.</p>
+    <div class="add-form">
+      <input type="text" id="newName" placeholder="e.g. No dessert" />
+      <div class="seg" id="newTypeSeg">
+        <button class="active earn" data-type="earn">earn</button>
+        <button class="spend" data-type="spend">spend</button>
+      </div>
+      <input type="number" id="newCoins" min="1" value="10" />
+      <button class="submit" id="addRuleBtn">Add</button>
+    </div>
+  </section>
+
+  <section class="block">
+    <h2>Peers</h2>
+    <p class="hint">Add another computer's node address (e.g. http://192.168.1.12:5000) to sync with it.</p>
+    <div class="add-form" style="margin-bottom:10px;">
+      <input type="text" id="newPeer" placeholder="http://<other computer's IP>:5000" />
+      <button class="submit" id="addPeerBtn">Add</button>
+    </div>
+    <div id="peersList"></div>
+    <button class="sync-btn" id="syncBtn">Sync now</button>
+  </section>
+
+  <section class="block">
+    <div class="verify-row">
+      <h2 style="margin:0;">History</h2>
+      <button class="sync-btn" id="verifyBtn">Verify chain</button>
+    </div>
+    <div id="verifyStatus" class="status" style="margin-bottom:10px;"></div>
+    <div id="historyList"></div>
+  </section>
+</div>
+
+<script>
+(function(){
+  let mining = false;
+  let lastChainLength = 0;
+
+  async function api(path, opts){
+    const res = await fetch(path, opts);
+    return res.json();
+  }
+  function fmt(n){ return (n >= 0 ? '+' : '') + n; }
+  function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  document.getElementById('nodeTag').textContent = 'this node: ' + window.location.origin;
+
+  async function refresh(){
+    const [chain, rules, peers, settings, identity] = await Promise.all([
+      api('/chain'), api('/rules'), api('/peers'), api('/settings'), api('/identity')
+    ]);
+    renderBalance(chain);
+    renderRules(rules);
+    renderPeers(peers);
+    renderHistory(chain, lastChainLength);
+    lastChainLength = chain.length;
+    document.getElementById('difficultyInput').value = settings.difficulty;
+    document.getElementById('identityName').value = identity.name;
+    document.getElementById('identityKey').textContent = 'public key: ' + identity.publicKey;
+    return { chain, rules, peers, settings, identity };
+  }
+
+  function renderBalance(chain){
+    let earned = 0, spent = 0;
+    for(const b of chain){
+      if(b.index === 0) continue;
+      if(b.type === 'earn') earned += b.coins; else spent += b.coins;
+    }
+    document.getElementById('balanceNum').textContent = (earned - spent).toLocaleString();
+    document.getElementById('totalEarned').textContent = earned.toLocaleString();
+    document.getElementById('totalSpent').textContent = spent.toLocaleString();
+    document.getElementById('totalEntries').textContent = (chain.length - 1).toLocaleString();
+  }
+
+  function renderRules(rules){
+    const list = document.getElementById('rulesList');
+    list.innerHTML = '';
+    if(rules.length === 0){ list.innerHTML = '<div class="empty">No rules yet — add one below.</div>'; return; }
+    for(const rule of rules){
+      const row = document.createElement('div');
+      row.className = 'rule ' + rule.type;
+      row.innerHTML = `
+        <span class="name">${esc(rule.name)}</span>
+        <span class="sign">${rule.type === 'earn' ? '+' : '−'}</span>
+        <input class="coins" type="number" min="1" value="${rule.coins}" data-id="${rule.id}" />
+        <button class="log" data-id="${rule.id}" ${mining ? 'disabled' : ''}>${rule.type === 'earn' ? 'Mine' : 'Log'}</button>
+        <button class="del" data-id="${rule.id}">×</button>
+      `;
+      list.appendChild(row);
+    }
+  }
+
+  function renderPeers(peers){
+    const list = document.getElementById('peersList');
+    list.innerHTML = '';
+    if(peers.length === 0){ list.innerHTML = '<div class="empty">No peers yet — this node is on its own.</div>'; return; }
+    peers.forEach((url, i) => {
+      const row = document.createElement('div');
+      row.className = 'peer-row';
+      row.innerHTML = `<span class="dot" id="dot-${i}"></span><span class="url">${esc(url)}</span><button data-i="${i}">×</button>`;
+      list.appendChild(row);
+      fetch(url + '/chain', { mode: 'cors' }).then(r => { if(r.ok) document.getElementById('dot-'+i).classList.add('online'); }).catch(()=>{});
+    });
+  }
+
+  function renderHistory(chain, prevLength){
+    const list = document.getElementById('historyList');
+    list.innerHTML = '';
+    const entries = chain.filter(b => b.index !== 0).slice().reverse();
+    if(entries.length === 0){ list.innerHTML = '<div class="empty">Nothing sealed yet.</div>'; return; }
+    for(const b of entries){
+      const row = document.createElement('div');
+      row.className = 'entry';
+      const d = new Date(b.timestamp);
+      const who = esc(b.minerName || 'unknown') + ' · ' + (b.minerPublicKey || '').slice(0, 8) + '…';
+      const workMeta = b.powDifficulty > 0
+        ? `<span>mined by ${who} · nonce ${b.nonce.toLocaleString()} · difficulty ${b.powDifficulty}</span>`
+        : `<span>logged by ${who}</span>`;
+      row.innerHTML = `
+        <div class="delta ${b.type}">${b.type === 'earn' ? fmt(b.coins) : '−' + b.coins}</div>
+        <div class="body">
+          <div>${esc(b.name)}</div>
+          ${b.note ? `<div class="note">${esc(b.note)}</div>` : ''}
+          <div class="meta"><span>${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>${workMeta}<span>#${b.index} · ${b.hash.slice(0,10)}</span></div>
+        </div>`;
+      list.appendChild(row);
+    }
+  }
+
+  async function handleLog(rule){
+    if(mining) return;
+    const note = document.getElementById('pendingNote').value.trim();
+    if(rule.type === 'earn'){
+      mining = true;
+      document.getElementById('miningPanel').classList.add('active');
+      document.getElementById('miningLine1').textContent = `Mining "${rule.name}" on this machine…`;
+      (await refresh());
+    }
+    const block = await api('/mine', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ rule_id: rule.id, note })
+    });
+    mining = false;
+    document.getElementById('miningPanel').classList.remove('active');
+    document.getElementById('pendingNote').value = '';
+    await refresh();
+  }
+
+  document.getElementById('rulesList').addEventListener('click', async (e) => {
+    const id = e.target.getAttribute('data-id');
+    if(!id) return;
+    if(e.target.classList.contains('log')){
+      const rules = await api('/rules');
+      const rule = rules.find(r => r.id === id);
+      if(rule) await handleLog(rule);
+    }else if(e.target.classList.contains('del')){
+      await api('/rules/' + id, { method: 'DELETE' });
+      await refresh();
+    }
+  });
+
+  document.getElementById('rulesList').addEventListener('change', async (e) => {
+    if(e.target.classList.contains('coins')){
+      const id = e.target.getAttribute('data-id');
+      const val = parseInt(e.target.value, 10);
+      if(!isNaN(val) && val > 0) await api('/rules/' + id, { method: 'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({coins: val}) });
+    }
+  });
+
+  document.getElementById('saveIdentityBtn').addEventListener('click', async () => {
+    const name = document.getElementById('identityName').value.trim();
+    if(!name) return;
+    await api('/identity', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
+    await refresh();
+  });
+
+  document.getElementById('difficultyInput').addEventListener('change', async (e) => {
+    let val = Math.max(1, Math.min(6, parseInt(e.target.value, 10) || 4));
+    e.target.value = val;
+    await api('/settings', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({difficulty: val}) });
+  });
+
+  let newType = 'earn';
+  document.getElementById('newTypeSeg').addEventListener('click', (e) => {
+    const btn = e.target.closest('button'); if(!btn) return;
+    newType = btn.getAttribute('data-type');
+    document.querySelectorAll('#newTypeSeg button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+
+  document.getElementById('addRuleBtn').addEventListener('click', async () => {
+    const name = document.getElementById('newName').value.trim();
+    const coins = parseInt(document.getElementById('newCoins').value, 10);
+    if(!name || isNaN(coins) || coins <= 0) return;
+    await api('/rules', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, type: newType, coins}) });
+    document.getElementById('newName').value = '';
+    await refresh();
+  });
+
+  document.getElementById('addPeerBtn').addEventListener('click', async () => {
+    const url = document.getElementById('newPeer').value.trim();
+    if(!url) return;
+    await api('/peers', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({url}) });
+    document.getElementById('newPeer').value = '';
+    await refresh();
+  });
+
+  document.getElementById('peersList').addEventListener('click', async (e) => {
+    const i = e.target.getAttribute('data-i');
+    if(i === null) return;
+    await api('/peers/' + i, { method: 'DELETE' });
+    await refresh();
+  });
+
+  document.getElementById('syncBtn').addEventListener('click', async () => {
+    const result = await api('/resolve', { method: 'POST' });
+    await refresh();
+    alert(result.replaced ? `Adopted a longer chain from a peer (now ${result.length} blocks).` : 'Already up to date.');
+  });
+
+  document.getElementById('verifyBtn').addEventListener('click', async () => {
+    const el = document.getElementById('verifyStatus');
+    el.textContent = 'Checking…'; el.className = 'status';
+    const result = await api('/verify');
+    if(result.valid){
+      el.textContent = `Verified — all ${result.length} blocks intact, chained, and proof-of-work checks out.`;
+      el.className = 'status ok';
+    }else{
+      el.textContent = `Broken at block #${result.brokenAt} — ${result.reason}.`;
+      el.className = 'status bad';
+    }
+  });
+
+  refresh();
+  setInterval(async () => {
+    if(mining) return;
+    const chain = await api('/chain');
+    if(chain.length !== lastChainLength) await refresh();
+  }, 4000);
+})();
+</script>
+</body>
+</html>
