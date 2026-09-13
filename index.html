@@ -122,7 +122,7 @@
       <span>Weekly upkeep (M&amp;Ms)</span>
       <input type="number" id="decayInput" min="0" />
     </div>
-    <p class="hint" id="upkeepHint" style="margin-top:-6px;">50 M&amp;Ms deducted automatically every week. Stops on its own once the balance hits zero, and resumes once you earn again.</p>
+    <p class="hint" id="upkeepHint" style="margin-top:-6px;">50 M&amp;Ms deducted if nothing is logged for a week. Skipped entirely if the balance is already at zero.</p>
     <div class="mining-panel" id="miningPanel"><div class="line1" id="miningLine1">Mining…</div></div>
     <input class="note-input" id="pendingNote" type="text" placeholder="Optional note for the next entry…" />
     <div id="rulesList"></div>
@@ -192,7 +192,7 @@
       const next = new Date(settings.nextDecayAt);
       const days = Math.max(0, Math.ceil((next - new Date()) / 86400000));
       document.getElementById('upkeepHint').textContent =
-        `${settings.decayAmount} M&Ms deducted automatically every week (next in ~${days} day${days===1?'':'s'}). Stops on its own once the balance hits zero, and resumes once you earn again.`;
+        `${settings.decayAmount} M&Ms deducted if nothing is logged for a week (next check in ~${days} day${days===1?'':'s'}). Skipped entirely if the balance is already at zero.`;
     }
     document.getElementById('identityName').value = identity.name;
     document.getElementById('identityKey').textContent = 'public key: ' + identity.publicKey;

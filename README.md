@@ -77,6 +77,13 @@ and difficulty it took to seal it.
 been tampered with. It re-checks every block's hash, its link to the
 previous block, its proof-of-work, and its signature.
 
+**Weekly upkeep** — checked in rolling 7-day windows: if nothing at all was
+logged (earned or spent) during a window, 50 M&Ms (adjustable under **Log
+something**) get deducted automatically. Log anything that week and the
+deduction is skipped. If your balance is already at zero, the deduction is
+skipped too instead of going negative — it resumes on its own once you've
+earned your way back above zero.
+
 **Sync with peers** — new entries broadcast to connected peers
 automatically. If a computer was asleep or offline when something was
 mined, open its dashboard and tap **Sync now** — it'll catch up by pulling
@@ -97,7 +104,3 @@ the longest valid chain from whichever peers it can reach.
 Install and run the same way, then add its address as a peer on the other
 nodes (and add their addresses as peers on it). Nothing else changes — this
 is the same design real blockchain networks use to scale to many nodes.
-
-
-
-

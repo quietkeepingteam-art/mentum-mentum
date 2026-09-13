@@ -3,6 +3,7 @@ import json
 import os
 import socket
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import requests
 from flask import Flask, jsonify, render_template, request
@@ -11,6 +12,9 @@ from blockchain import (
     Block, generate_keypair, load_private_key, is_block_valid,
     make_genesis, mine_block, log_block, verify_chain,
 )
+
+DECAY_INTERVAL_DAYS = 7
+DECAY_RULE_NAME = "Weekly upkeep"
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -62,7 +66,26 @@ def load_peers():
 
 
 def load_settings():
-    return load_json(SETTINGS_FILE, {"difficulty": 4})
+    s = load_json(SETTINGS_FILE, {})
+    changed = False
+    if "difficulty" not in s:
+        s["difficulty"] = 4
+        changed = True
+    if "decayAmount" not in s:
+        s["decayAmount"] = 50
+        changed = True
+    if "nextDecayAt" not in s:
+        s["nextDecayAt"] = (datetime.now(timezone.utc) + timedelta(days=DECAY_INTERVAL_DAYS)).isoformat()
+        changed = True
+    if changed:
+        save_json(SETTINGS_FILE, s)
+    return s
+
+
+def chain_balance(chain):
+    earned = sum(b.coins for b in chain if b.index != 0 and b.type == "earn")
+    spent = sum(b.coins for b in chain if b.index != 0 and b.type == "spend")
+    return earned - spent
 
 
 # ---------- identity ----------
@@ -103,15 +126,71 @@ def set_identity_name():
     return jsonify({"publicKey": d["publicKey"], "name": d["name"]})
 
 
+# ---------- automatic weekly upkeep ----------
+
+def parse_ts(ts):
+    return datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+
+
+def had_activity_in_window(chain, window_start, window_end):
+    """True if any real (non-automatic) entry was logged in [window_start, window_end)."""
+    for b in chain:
+        if b.index == 0:
+            continue
+        if b.type == "spend" and b.name == DECAY_RULE_NAME:
+            continue  # automatic deductions don't count as activity
+        if window_start <= parse_ts(b.timestamp) < window_end:
+            return True
+    return False
+
+
+def apply_due_upkeep():
+    """Deduct `decayAmount` M&Ms for any 7-day window in which nothing was
+    logged. Checked lazily whenever the dashboard talks to this node — no
+    background process needed. If the balance is already at zero (or the
+    deduction would take it there), that window's deduction is skipped
+    rather than going negative; it resumes automatically once the balance
+    is positive again."""
+    s = load_settings()
+    now = datetime.now(timezone.utc)
+    next_due = datetime.fromisoformat(s["nextDecayAt"])
+    if now < next_due:
+        return
+
+    amount = s.get("decayAmount", 50)
+    private_key, pub_hex, name = get_signing_identity()
+
+    while now >= next_due:
+        window_start = next_due - timedelta(days=DECAY_INTERVAL_DAYS)
+        chain = load_chain()
+        balance = chain_balance(chain)
+        if balance > 0 and not had_activity_in_window(chain, window_start, next_due):
+            deduct = min(amount, balance)
+            prev = chain[-1]
+            block = log_block(prev.index + 1, DECAY_RULE_NAME, "spend", deduct,
+                               "Automatic — nothing logged that week", prev.hash, pub_hex, name, private_key)
+            chain.append(block)
+            save_chain(chain)
+            broadcast_block(block)
+        # else: either there was activity that week, or the balance is already at zero
+        next_due = next_due + timedelta(days=DECAY_INTERVAL_DAYS)
+
+    s = load_settings()
+    s["nextDecayAt"] = next_due.isoformat()
+    save_json(SETTINGS_FILE, s)
+
+
 # ---------- chain ----------
 
 @app.route("/chain", methods=["GET"])
 def get_chain():
+    apply_due_upkeep()
     return jsonify([b.to_dict() for b in load_chain()])
 
 
 @app.route("/verify", methods=["GET"])
 def verify():
+    apply_due_upkeep()
     chain = load_chain()
     result = verify_chain(chain)
     result["length"] = len(chain)
@@ -182,18 +261,22 @@ def delete_peer(i):
 
 @app.route("/settings", methods=["GET", "POST"])
 def settings():
+    s = load_settings()
     if request.method == "POST":
-        s = load_settings()
-        s["difficulty"] = max(1, min(6, int(request.json.get("difficulty", 4))))
+        body = request.json or {}
+        if "difficulty" in body:
+            s["difficulty"] = max(1, min(6, int(body["difficulty"])))
+        if "decayAmount" in body:
+            s["decayAmount"] = max(0, int(body["decayAmount"]))
         save_json(SETTINGS_FILE, s)
-        return jsonify(s)
-    return jsonify(load_settings())
+    return jsonify(s)
 
 
 # ---------- mining / logging ----------
 
 @app.route("/mine", methods=["POST"])
 def mine():
+    apply_due_upkeep()
     body = request.json
     rules = {r["id"]: r for r in load_rules()}
     rule = rules.get(body.get("rule_id"))
